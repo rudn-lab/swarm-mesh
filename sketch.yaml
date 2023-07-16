@@ -1,0 +1,24 @@
+profiles:
+  esp32:
+    notes: Mesh code for esp32
+    fqbn: esp32:esp32:esp32doit-devkit-v1
+    platforms:
+      - platform: esp32:esp32 (2.0.9)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - Painless Mesh (1.5.0)
+      - TaskScheduler (3.7.0)
+      - ArduinoJson (6.21.2)
+      - AsyncTCP (1.1.4)
+
+  esp8266:
+    notes: Mesh code for esp8266
+    fqbn: esp8266:esp8266:generic
+    platforms:
+      - platform: esp8266:esp8266 (3.1.2)
+        platform_index_url: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+    libraries:
+      - Painless Mesh (1.5.0)
+      - TaskScheduler (3.7.0)
+      - ArduinoJson (6.21.2)
+      - ESPAsyncTCP (1.2.4)
