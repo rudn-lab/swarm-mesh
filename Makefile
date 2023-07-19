@@ -9,3 +9,6 @@ esp8266_compile:
 	arduino-cli compile --profile esp8266
 esp8266_upload:
 	arduino-cli upload -p $p --profile esp8266
+
+monitor:
+	arduino-cli monitor -p $p -c baudrate=115200

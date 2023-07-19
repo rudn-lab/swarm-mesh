@@ -1,11 +1,3 @@
-//************************************************************
-// this is a simple example that uses the painlessMesh library
-//
-// 1. sends a silly message to every node on the mesh at a random time between 1 and 5 seconds
-// 2. prints anything it receives to Serial.print
-//
-//
-//************************************************************
 #include "painlessMesh.h"
 
 #define   MESH_PREFIX     "esp-mesh-network"
@@ -15,34 +7,88 @@
 Scheduler userScheduler; // to control your personal task
 painlessMesh  mesh;
 
-// User stub
-void sendMessage() ; // Prototype so PlatformIO doesn't complain
+enum MessageType {
+  Broadcast = 0,
+  Single,
+  None,
+};
 
-Task taskSendMessage( TASK_SECOND * 1 , TASK_FOREVER, &sendMessage );
+String messageTypeNames[3] = {
+  "broadcast",
+  "single",
+  "none"
+};
 
-void sendMessage() {
-  String msg = "Hello from node ";
-  msg += mesh.getNodeId();
-  mesh.sendBroadcast( msg );
-  taskSendMessage.setInterval( random( TASK_SECOND * 1, TASK_SECOND * 5 ));
+struct Message {
+  MessageType type;
+  int destId;
+  String content;
+};
+
+Message msg;
+
+String input = "";
+bool isInputFinished = false;
+
+void serialEvent() {
+  while (Serial.available() > 0) {
+    char c = (char)Serial.read();
+    if (c == '\n') {
+      isInputFinished = true;
+    } else {
+      input += c;
+    }
+  }
 }
 
-// Needed for painless library
-void receivedCallback( uint32_t from, String &msg ) {
-  Serial.printf("startHere: Received from %u msg=%s\n", from, msg.c_str());
+void execCommand() {
+  if (!isInputFinished) {
+    return;
+  }
+
+  int cmd_delimiter_idx = input.indexOf(":");
+  String cmd = input.substring(0, cmd_delimiter_idx);
+  String val = input.substring(cmd_delimiter_idx + 1);
+  Serial.printf("> %s:%s\n", cmd, val);
+
+  if (cmd == "msg") {
+    if (val == "new") {
+      msg.type = MessageType::None;
+      msg.destId = 0;
+      msg.content = "";
+    } else if (val == "show") {
+      Serial.printf("Message:\n");
+      Serial.printf("\ttype:%s\n", messageTypeNames[msg.type]);
+      Serial.printf("\tdestId:%i\n", msg.destId);
+      Serial.printf("\tcontent:%s\n", msg.content);
+    } else if (val == "send") {
+      Serial.printf("Sending the message");
+      if (msg.type == MessageType::Broadcast) {
+        mesh.sendBroadcast(msg.content);
+      } else if (msg.type == MessageType::Single) {
+        mesh.sendSingle(msg.destId, msg.content);
+      }
+    } else if (val == "time") {
+      mesh.sendBroadcast(String(mesh.getNodeTime()));
+    }
+  } else if (cmd == "type") {
+    if (val == "broadcast") {
+      msg.type = MessageType::Broadcast;
+    } else if (val == "single") {
+      msg.type = MessageType::Single;
+    }
+  } else if (cmd == "destid") {
+    msg.destId = val.toInt();
+  } else if (cmd == "content") {
+    msg.content = val;
+  }
+
+  // Reset stuff
+  isInputFinished = false;
+  input = "";
 }
 
-void newConnectionCallback(uint32_t nodeId) {
-    Serial.printf("--> startHere: New Connection, nodeId = %u\n", nodeId);
-}
-
-void changedConnectionCallback() {
-  Serial.printf("Changed connections\n");
-}
-
-void nodeTimeAdjustedCallback(int32_t offset) {
-    Serial.printf("Adjusted time %u. Offset = %d\n", mesh.getNodeTime(),offset);
-}
+Task taskExecCommand(TASK_IMMEDIATE, TASK_FOREVER, &execCommand);
 
 void setup() {
   Serial.begin(115200);
@@ -50,13 +96,10 @@ void setup() {
   mesh.setDebugMsgTypes( ERROR | MESH_STATUS | CONNECTION | SYNC | COMMUNICATION | GENERAL | MSG_TYPES | REMOTE ); // all types on
 
   mesh.init( MESH_PREFIX, MESH_PASSWORD, &userScheduler, MESH_PORT );
-  mesh.onReceive(&receivedCallback);
-  mesh.onNewConnection(&newConnectionCallback);
-  mesh.onChangedConnections(&changedConnectionCallback);
-  mesh.onNodeTimeAdjusted(&nodeTimeAdjustedCallback);
+  userScheduler.addTask(taskExecCommand);
+  taskExecCommand.enable();
 
-  userScheduler.addTask( taskSendMessage );
-  taskSendMessage.enable();
+  Serial.printf("My nodeId: %i.\n", mesh.getNodeId());
 }
 
 void loop() {
